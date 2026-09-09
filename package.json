@@ -1,0 +1,27 @@
+{
+  "name": "confirmation-generator",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:push": "node scripts/db-push.mjs"
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^4.1.6",
+    "fflate": "^0.8.2",
+    "jszip": "^3.10.1",
+    "next": "^16.3.4",
+    "pg": "^8.13.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3"
+  }
+}
