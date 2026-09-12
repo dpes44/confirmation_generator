@@ -1,10 +1,15 @@
 node_modules
 .next
 out
-.env
-.env.local
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
 .vercel
+
+# Secrets. .env.example is the documented template and stays tracked.
+.env
+.env.*
+!.env.example
+
+# Real client data - names, PAN numbers and balances.
 reference files
