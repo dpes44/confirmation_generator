@@ -65,6 +65,9 @@ create table if not exists letters (
   purchases         numeric(18,2) not null default 0,
   sales_return      numeric(18,2) not null default 0,
   purchases_return  numeric(18,2) not null default 0,
+  purchase_annex13  numeric(18,2) not null default 0,
+  sales_annex13     numeric(18,2) not null default 0,
+  -- Retained for letters saved before Annex 13 was split in two.
   annex13           numeric(18,2) not null default 0,
   closing_balance   numeric(18,2) not null default 0,
   created_at        timestamptz not null default now(),
@@ -92,7 +95,7 @@ values (1,
   'In connection with the audit of our financial statements, we are writing to you requesting that you confirm the following balance(s) as of date {{closing_date}}.',
   'Please add your confirmation or send us the received copy with signed and official stamp within {{days}} days of this letter. Otherwise, we shall assume this balance as your acceptance.',
   'For any query, please contact at {{phone}} - {{signatory}}',
-  'Confirmation of Sales Transactions for the year {{fiscal_year}}')
+  'Confirmation of Sales and Purchase Transactions for the year {{fiscal_year}}')
 on conflict (id) do nothing;
 
 -- Additive migrations (idempotent) ------------------------------------------
@@ -101,5 +104,22 @@ alter table company_profile add column if not exists tpl_table_rows text not nul
 
 -- Default row labels for the balance table, one per line as "key|label".
 update company_profile
-   set tpl_table_rows = E'opening_balance|Opening Balance (As of {{opening_date}})\nsales|Sales\npurchases|Purchases\nsales_return|Sales Return\npurchases_return|Purchases Return\nannex13|Annex 13 Balance\nclosing_balance|Closing Balance (As of {{closing_date}})'
+   set tpl_table_rows = E'opening_balance|Opening Balance (As of {{opening_date}})\nsales|Sales\npurchases|Purchases\nsales_return|Sales Return\npurchases_return|Purchases Return\npurchase_annex13|Purchase Annex 13\nsales_annex13|Sales Annex 13\nclosing_balance|Closing Balance (As of {{closing_date}})'
  where id = 1 and btrim(tpl_table_rows) = '';
+
+-- Annex 13 split into separate purchase and sales columns ---------------------
+alter table letters add column if not exists purchase_annex13 numeric(18,2) not null default 0;
+alter table letters add column if not exists sales_annex13    numeric(18,2) not null default 0;
+
+-- Move existing installs onto the new default table rows and subject, but only
+-- where they still hold the previous defaults verbatim. Anything edited by hand
+-- is left exactly as it is.
+update company_profile
+   set tpl_table_rows = E'opening_balance|Opening Balance (As of {{opening_date}})\nsales|Sales\npurchases|Purchases\nsales_return|Sales Return\npurchases_return|Purchases Return\npurchase_annex13|Purchase Annex 13\nsales_annex13|Sales Annex 13\nclosing_balance|Closing Balance (As of {{closing_date}})'
+ where id = 1
+   and btrim(tpl_table_rows) = btrim(E'opening_balance|Opening Balance (As of {{opening_date}})\nsales|Sales\npurchases|Purchases\nsales_return|Sales Return\npurchases_return|Purchases Return\nannex13|Annex 13 Balance\nclosing_balance|Closing Balance (As of {{closing_date}})');
+
+update company_profile
+   set tpl_subject = 'Confirmation of Sales and Purchase Transactions for the year {{fiscal_year}}'
+ where id = 1
+   and btrim(tpl_subject) = 'Confirmation of Sales Transactions for the year {{fiscal_year}}';

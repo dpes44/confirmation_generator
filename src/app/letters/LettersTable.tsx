@@ -24,6 +24,8 @@ function toLetterData(l: LetterWithClient): LetterData {
     purchases: l.purchases,
     sales_return: l.sales_return,
     purchases_return: l.purchases_return,
+    purchase_annex13: l.purchase_annex13,
+    sales_annex13: l.sales_annex13,
     annex13: l.annex13,
     closing_balance: l.closing_balance,
   };

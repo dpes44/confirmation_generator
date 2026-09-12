@@ -33,6 +33,7 @@ export default function ImportTab({ rows, setRows, onFileName, onError, grouping
   const [ignored, setIgnored] = useState(0);
   const [enriching, setEnriching] = useState(false);
   const [enrichNote, setEnrichNote] = useState('');
+  const [rowSearch, setRowSearch] = useState('');
 
   function toDrafts(g: Grid, hRow: number, m: ColumnMap): RowDraft[] {
     return extractRows(g, hRow, m).map((r) => ({
@@ -139,13 +140,24 @@ export default function ImportTab({ rows, setRows, onFileName, onError, grouping
     [grid, headerRow, map],
   );
 
+  // Filtering only changes what is on screen; a row stays selected whether or
+  // not it currently matches the search.
+  const visibleRows = useMemo(() => {
+    const term = rowSearch.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((r) =>
+      `${r.name} ${r.pan_number} ${r.address}`.toLowerCase().includes(term));
+  }, [rows, rowSearch]);
+
   const selectedCount = rows.filter((r) => r.selected).length;
   const missingPan = rows.filter((r) => r.selected && !r.pan_number.trim()).length;
   const missingAddress = rows.filter((r) => r.selected && !r.address.trim()).length;
   const nameMapped = map.includes('name');
 
+  /** Applies to the rows currently on screen, so it respects the search. */
   function setAll(selected: boolean) {
-    setRows(rows.map((r) => ({ ...r, selected })));
+    const inView = new Set(visibleRows.map((r) => r.key));
+    setRows(rows.map((r) => (inView.has(r.key) ? { ...r, selected } : r)));
   }
 
   function toggle(key: string) {
@@ -254,12 +266,30 @@ export default function ImportTab({ rows, setRows, onFileName, onError, grouping
           )}
 
           <div className="row" style={{ marginBottom: 10 }}>
-            <button className="sm" onClick={() => setAll(true)}>Select all</button>
-            <button className="sm" onClick={() => setAll(false)}>Select none</button>
+            <input
+              type="text"
+              placeholder="Search by client, PAN, or address…"
+              value={rowSearch}
+              onChange={(e) => setRowSearch(e.target.value)}
+              style={{ maxWidth: 300 }}
+            />
+            {rowSearch && <button className="sm" onClick={() => setRowSearch('')}>Clear</button>}
+            <button className="sm" onClick={() => setAll(true)}>
+              {rowSearch ? 'Select matching' : 'Select all'}
+            </button>
+            <button className="sm" onClick={() => setAll(false)}>
+              {rowSearch ? 'Deselect matching' : 'Select none'}
+            </button>
             <div className="spacer" />
-            <span className="sub" style={{ fontSize: 12 }}>{selectedCount} of {rows.length} selected</span>
+            <span className="sub" style={{ fontSize: 12 }}>
+              {rowSearch && <>{visibleRows.length} of {rows.length} shown · </>}
+              {selectedCount} of {rows.length} selected
+            </span>
           </div>
 
+          {visibleRows.length === 0 ? (
+            <div className="empty">No rows match &ldquo;{rowSearch}&rdquo;.</div>
+          ) : (
           <div className="tablewrap scroll-y">
             <table>
               <thead>
@@ -275,7 +305,7 @@ export default function ImportTab({ rows, setRows, onFileName, onError, grouping
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {visibleRows.map((r) => (
                   <tr key={r.key} style={r.selected ? undefined : { opacity: 0.45 }}>
                     <td>
                       <input type="checkbox" checked={r.selected} onChange={() => toggle(r.key)} />
@@ -294,6 +324,7 @@ export default function ImportTab({ rows, setRows, onFileName, onError, grouping
               </tbody>
             </table>
           </div>
+          )}
         </div>
       )}
     </>

@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { downloadMerged, downloadZip } from '@/lib/pdf-output';
-import { isBsDateShape, parseFiscalYear } from '@/lib/fiscal';
+import { isBsDateShape, parseFiscalYear, defaultClosingDate, defaultOpeningDate } from '@/lib/fiscal';
+import { renderTemplate } from '@/lib/format';
 import type { Company } from '@/lib/types';
 import type { LetterData } from '@/components/LetterPdf';
 import PdfPreview from '@/components/PdfPreview';
 import ImportTab from './ImportTab';
 import ManualTab from './ManualTab';
-import { BLANK_META, type Meta, type RowDraft } from './types';
+import { initialMeta, type Meta, type RowDraft } from './types';
 
 /** Preview is capped so a 300-row import does not lock the tab up. */
 const PREVIEW_LIMIT = 20;
@@ -18,7 +19,10 @@ const PREVIEW_LIMIT = 20;
 export default function Generator() {
   const [company, setCompany] = useState<Company | null>(null);
   const [tab, setTab] = useState<'import' | 'manual'>('import');
-  const [meta, setMeta] = useState<Meta>(BLANK_META);
+  const [meta, setMeta] = useState<Meta>(initialMeta);
+  // Once either is edited by hand, stop regenerating it underneath the user.
+  const [subjectEdited, setSubjectEdited] = useState(false);
+  const [datesEdited, setDatesEdited] = useState(false);
   const [rows, setRows] = useState<RowDraft[]>([]);
   const [sourceFile, setSourceFile] = useState('');
 
@@ -34,26 +38,57 @@ export default function Generator() {
 
   // When the fiscal year is complete, ask the server for the BS dates - it
   // reuses whatever was saved for that year previously.
-  const fyValid = !!parseFiscalYear(meta.fiscal_year);
+  const fy = parseFiscalYear(meta.fiscal_year);
+  const fyValid = !!fy;
+
+  // Changing the fiscal year re-derives its Shrawan 1 / Ashadh dates, unless
+  // they have been typed over by hand.
+  useEffect(() => {
+    if (!fy || datesEdited) return;
+    setMeta((m) => ({
+      ...m,
+      opening_date_bs: defaultOpeningDate(fy),
+      closing_date_bs: defaultClosingDate(fy),
+    }));
+  }, [fy?.label, datesEdited]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Whatever was actually used for this year before beats the computed guess,
+  // because Ashadh's last day is not derivable without a BS calendar.
   useEffect(() => {
     if (!fyValid) return;
     let stale = false;
-    api<{ fiscal_year: string; opening_date_bs: string; closing_date_bs: string }>(
+    api<{ fiscal_year: string; opening_date_bs: string; closing_date_bs: string; source: string }>(
       `/api/letters/defaults?fy=${encodeURIComponent(meta.fiscal_year)}`,
     )
       .then((d) => {
-        if (stale) return;
+        if (stale || datesEdited || d.source !== 'previous') return;
         setMeta((m) => ({
           ...m,
-          fiscal_year: d.fiscal_year || m.fiscal_year,
-          // Never overwrite dates the user has already typed.
-          opening_date_bs: m.opening_date_bs || d.opening_date_bs,
-          closing_date_bs: m.closing_date_bs || d.closing_date_bs,
+          opening_date_bs: d.opening_date_bs || m.opening_date_bs,
+          closing_date_bs: d.closing_date_bs || m.closing_date_bs,
         }));
       })
       .catch(() => { /* suggestions are best-effort */ });
     return () => { stale = true; };
-  }, [fyValid, meta.fiscal_year]);
+  }, [fyValid, meta.fiscal_year, datesEdited]);
+
+  // The subject is always filled in, and follows the fiscal year until edited.
+  useEffect(() => {
+    if (!company || subjectEdited) return;
+    setMeta((m) => ({
+      ...m,
+      subject: renderTemplate(company.tpl_subject, {
+        fiscal_year: m.fiscal_year,
+        opening_date: m.opening_date_bs,
+        closing_date: m.closing_date_bs,
+        days: String(company.confirm_days),
+        phone: company.signatory_phone,
+        signatory: company.signatory_name,
+        company: company.name,
+        currency: company.currency_label,
+      }),
+    }));
+  }, [company, meta.fiscal_year, meta.opening_date_bs, meta.closing_date_bs, subjectEdited]);
 
   const selected = useMemo(() => rows.filter((r) => r.selected && r.name.trim()), [rows]);
 
@@ -205,14 +240,14 @@ export default function Generator() {
             <label>Opening balance date (BS)</label>
             <input
               type="text" placeholder="2081/04/01" value={meta.opening_date_bs}
-              onChange={(e) => setMeta({ ...meta, opening_date_bs: e.target.value })}
+              onChange={(e) => { setDatesEdited(true); setMeta({ ...meta, opening_date_bs: e.target.value }); }}
             />
           </div>
           <div className="field">
             <label>Closing balance date (BS)</label>
             <input
               type="text" placeholder="2082/03/32" value={meta.closing_date_bs}
-              onChange={(e) => setMeta({ ...meta, closing_date_bs: e.target.value })}
+              onChange={(e) => { setDatesEdited(true); setMeta({ ...meta, closing_date_bs: e.target.value }); }}
             />
             <div className="hint">Check the day — Ashadh has 31 or 32 days depending on the year.</div>
           </div>
@@ -220,13 +255,25 @@ export default function Generator() {
             <label>Subject line</label>
             <input
               type="text"
-              placeholder={company?.tpl_subject ?? 'Confirmation of Sales Transactions for the year {{fiscal_year}}'}
               value={meta.subject}
-              onChange={(e) => setMeta({ ...meta, subject: e.target.value })}
+              onChange={(e) => { setSubjectEdited(true); setMeta({ ...meta, subject: e.target.value }); }}
             />
             <div className="hint">
-              Leave blank to use the default from Company settings. <code>{'{{fiscal_year}}'}</code> is filled in
-              for you.
+              {subjectEdited
+                ? 'Edited by hand, so it no longer follows the fiscal year.'
+                : 'Follows the fiscal year automatically. Edit it to fix your own wording; the default lives in Company settings.'}
+              {subjectEdited && (
+                <>
+                  {' '}
+                  <button
+                    className="sm"
+                    style={{ padding: '1px 7px' }}
+                    onClick={() => setSubjectEdited(false)}
+                  >
+                    Reset
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

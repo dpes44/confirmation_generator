@@ -39,6 +39,10 @@ export const AMOUNT_FIELDS = [
   'purchases',
   'sales_return',
   'purchases_return',
+  'purchase_annex13',
+  'sales_annex13',
+  // Kept for letters saved before Annex 13 was split into purchase and sales
+  // columns, and for spreadsheets that still use a single combined column.
   'annex13',
   'closing_balance',
 ] as const;
@@ -81,6 +85,8 @@ export const EMPTY_AMOUNTS: Amounts = {
   purchases: 0,
   sales_return: 0,
   purchases_return: 0,
+  purchase_annex13: 0,
+  sales_annex13: 0,
   annex13: 0,
   closing_balance: 0,
 };

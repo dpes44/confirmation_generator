@@ -130,6 +130,8 @@ const LETTER_SELECT = `
          l.purchases::float8        as purchases,
          l.sales_return::float8     as sales_return,
          l.purchases_return::float8 as purchases_return,
+         l.purchase_annex13::float8 as purchase_annex13,
+         l.sales_annex13::float8    as sales_annex13,
          l.annex13::float8          as annex13,
          l.closing_balance::float8  as closing_balance,
          c.name as client_name, c.address as client_address,
@@ -164,7 +166,9 @@ export type LetterInput = {
   opening_date_bs?: string;
   closing_date_bs?: string;
   opening_balance?: number; sales?: number; purchases?: number;
-  sales_return?: number; purchases_return?: number; annex13?: number; closing_balance?: number;
+  sales_return?: number; purchases_return?: number;
+  purchase_annex13?: number; sales_annex13?: number;
+  annex13?: number; closing_balance?: number;
 };
 
 const num = (v: unknown) => {
@@ -179,7 +183,8 @@ export async function insertLetters(rows: LetterInput[]): Promise<number[]> {
   // which matters on a small Aiven instance.
   const cols = ['client_id', 'batch_id', 'fiscal_year', 'subject', 'letter_date',
     'opening_date_bs', 'closing_date_bs', 'opening_balance', 'sales', 'purchases',
-    'sales_return', 'purchases_return', 'annex13', 'closing_balance'];
+    'sales_return', 'purchases_return', 'purchase_annex13', 'sales_annex13',
+    'annex13', 'closing_balance'];
 
   const vals: unknown[] = [];
   const tuples = rows.map((r) => {
@@ -187,7 +192,9 @@ export async function insertLetters(rows: LetterInput[]): Promise<number[]> {
       r.client_id, r.batch_id ?? null, r.fiscal_year, r.subject ?? '', r.letter_date,
       r.opening_date_bs ?? '', r.closing_date_bs ?? '',
       num(r.opening_balance), num(r.sales), num(r.purchases),
-      num(r.sales_return), num(r.purchases_return), num(r.annex13), num(r.closing_balance),
+      num(r.sales_return), num(r.purchases_return),
+      num(r.purchase_annex13), num(r.sales_annex13),
+      num(r.annex13), num(r.closing_balance),
     ];
     return `(${t.map((v) => `$${vals.push(v)}`).join(',')})`;
   });
@@ -204,11 +211,13 @@ export async function updateLetter(id: number, r: Partial<LetterInput>): Promise
     `update letters set fiscal_year = $2, subject = $3, letter_date = $4,
             opening_date_bs = $5, closing_date_bs = $6,
             opening_balance = $7, sales = $8, purchases = $9, sales_return = $10,
-            purchases_return = $11, annex13 = $12, closing_balance = $13, updated_at = now()
+            purchases_return = $11, purchase_annex13 = $12, sales_annex13 = $13,
+            annex13 = $14, closing_balance = $15, updated_at = now()
       where id = $1`,
     [id, r.fiscal_year ?? '', r.subject ?? '', r.letter_date, r.opening_date_bs ?? '', r.closing_date_bs ?? '',
       num(r.opening_balance), num(r.sales), num(r.purchases), num(r.sales_return),
-      num(r.purchases_return), num(r.annex13), num(r.closing_balance)],
+      num(r.purchases_return), num(r.purchase_annex13), num(r.sales_annex13),
+      num(r.annex13), num(r.closing_balance)],
   );
 }
 

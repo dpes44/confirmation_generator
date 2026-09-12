@@ -51,3 +51,25 @@ export function isBsDateShape(v: string): boolean {
   const day = Number(m[3]);
   return month >= 1 && month <= 12 && day >= 1 && day <= 32;
 }
+
+/**
+ * The Nepali fiscal year containing a given Gregorian date.
+ *
+ * The year runs Shrawan 1 to the last day of Ashadh, and Shrawan 1 falls on
+ * 16 or 17 July. Only that boundary is needed to name the year, so this uses
+ * 16 July rather than a full Bikram Sambat conversion — the same reason the BS
+ * dates themselves are stored as text. Worst case, on 16-17 July the suggestion
+ * is one year out and the field is there to be corrected.
+ *
+ * September 2026 -> 2083/84, matching the "2083-84" workbook.
+ */
+export function currentFiscalYear(today = new Date()): FiscalYear {
+  const year = today.getFullYear();
+  const month = today.getMonth() + 1;
+  const day = today.getDate();
+
+  const started = month > 7 || (month === 7 && day >= 16);
+  const start = year + (started ? 57 : 56);
+
+  return { start, end: start + 1, label: `${start}/${String(start + 1).slice(-2)}` };
+}
