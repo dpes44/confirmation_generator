@@ -51,6 +51,18 @@ export type AmountField = (typeof AMOUNT_FIELDS)[number];
 
 export type Amounts = Record<AmountField, number>;
 
+/**
+ * The rows that represent a position rather than a total, and so are printed
+ * with a Dr/Cr suffix instead of a sign. Transaction totals (sales, purchases,
+ * returns, annex) have no accounting side and are left alone.
+ */
+export const BALANCE_FIELDS: readonly AmountField[] = ['opening_balance', 'closing_balance'];
+
+export function isBalanceField(field: string): boolean {
+  return (BALANCE_FIELDS as readonly string[]).includes(field);
+}
+
+
 export type Letter = Amounts & {
   id: number;
   client_id: number;

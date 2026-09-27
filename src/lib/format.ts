@@ -29,6 +29,26 @@ export function formatAmount(value: number | string | null | undefined, grouping
   return negative ? `(${out})` : out;
 }
 
+/**
+ * Formats a balance with its accounting side rather than a sign.
+ *
+ * A customer who owes money carries a debit balance; one who has paid ahead
+ * carries a credit balance. On a confirmation letter that reads better as
+ * "9778.76 Cr" than "-9778.76", and printing both the minus and the Cr would
+ * say the same thing twice, so the magnitude is always shown unsigned.
+ *
+ * Zero is neither side, so it gets no suffix.
+ */
+export function formatBalance(
+  value: number | string | null | undefined,
+  grouping: Grouping = 'none',
+): string {
+  const n = typeof value === 'string' ? Number(value) : (value ?? 0);
+  if (!Number.isFinite(n) || n === 0) return formatAmount(0, grouping);
+
+  return `${formatAmount(Math.abs(n), grouping)} ${n < 0 ? 'Cr' : 'Dr'}`;
+}
+
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 

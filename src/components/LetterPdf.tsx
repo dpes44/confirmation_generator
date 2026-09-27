@@ -1,8 +1,8 @@
 'use client';
 
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
-import { formatAmount, formatLetterDate, renderTemplate } from '@/lib/format';
-import { AMOUNT_FIELDS, type Amounts, type Company } from '@/lib/types';
+import { formatAmount, formatBalance, formatLetterDate, renderTemplate } from '@/lib/format';
+import { AMOUNT_FIELDS, isBalanceField, type Amounts, type Company } from '@/lib/types';
 
 export type LetterData = Amounts & {
   client_name: string;
@@ -76,7 +76,11 @@ export function LetterBody({ company, letter }: { company: Company; letter: Lett
     currency: company.currency_label,
   };
   const fill = (tpl: string) => renderTemplate(tpl, vars);
-  const amount = (key: string) => formatAmount((letter as any)[key], company.number_grouping);
+  // Balances carry a Dr/Cr suffix; transaction totals do not.
+  const amount = (key: string) =>
+    isBalanceField(key)
+      ? formatBalance((letter as any)[key], company.number_grouping)
+      : formatAmount((letter as any)[key], company.number_grouping);
 
   const rows = tableRows(company);
   const subject = letter.subject?.trim() || fill(company.tpl_subject);

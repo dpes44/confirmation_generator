@@ -7,8 +7,8 @@ import {
   extract, extractRows, sampleValue, usefulColumns,
   TARGET_LABELS, type ColumnMap, type TargetField,
 } from '@/lib/mapping';
-import { formatAmount, type Grouping } from '@/lib/format';
-import { AMOUNT_FIELDS, type Client } from '@/lib/types';
+import { formatAmount, formatBalance, type Grouping } from '@/lib/format';
+import { AMOUNT_FIELDS, isBalanceField, type Client } from '@/lib/types';
 import type { RowDraft } from './types';
 
 const TARGET_ORDER: TargetField[] = [
@@ -316,7 +316,11 @@ export default function ImportTab({ rows, setRows, onFileName, onError, grouping
                     <td>{r.address || <span className="sub">—</span>}</td>
                     {AMOUNT_FIELDS.map((f) => (
                       <td key={f} className="num">
-                        {r.amounts[f] ? formatAmount(r.amounts[f], grouping) : <span className="sub">—</span>}
+                        {r.amounts[f]
+                          ? (isBalanceField(f)
+                              ? formatBalance(r.amounts[f], grouping)
+                              : formatAmount(r.amounts[f], grouping))
+                          : <span className="sub">—</span>}
                       </td>
                     ))}
                   </tr>

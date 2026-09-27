@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { downloadMerged, downloadSingle, downloadZip } from '@/lib/pdf-output';
-import { formatAmount, formatLetterDate } from '@/lib/format';
+import { formatAmount, formatBalance, formatLetterDate } from '@/lib/format';
 import type { Company, LetterWithClient } from '@/lib/types';
 import type { LetterData } from '@/components/LetterPdf';
 import PdfPreview from '@/components/PdfPreview';
@@ -190,7 +190,7 @@ export default function LettersTable() {
                     <td style={{ whiteSpace: 'nowrap' }}>{formatLetterDate(l.letter_date)}</td>
                     <td className="num">{formatAmount(l.sales, company?.number_grouping ?? 'none')}</td>
                     <td className="num">{formatAmount(l.purchases, company?.number_grouping ?? 'none')}</td>
-                    <td className="num">{formatAmount(l.closing_balance, company?.number_grouping ?? 'none')}</td>
+                    <td className="num">{formatBalance(l.closing_balance, company?.number_grouping ?? 'none')}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {company && (
                         <button className="sm" onClick={() => run(() => downloadSingle(company, toLetterData(l)))}>
