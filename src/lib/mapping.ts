@@ -26,20 +26,34 @@ export const TARGET_LABELS: Record<TargetField, string> = {
  * and digits. Order matters: the first entry whose pattern matches wins, so more
  * specific patterns (sales return) must precede looser ones (sales).
  */
+// Word fragments shared by the rules below. Headers are normalised to bare
+// lowercase alphanumerics first, so there is no whitespace to match.
+//   PURCHASE tolerates the common "Purchse" misspelling (missing 'a').
+//   ANNEX    tolerates "Anex" and "Annexure", with or without the 13.
+//   QUALIFIER absorbs the Net/Total/Gross prefix accountants add.
+const PURCHASE = 'purcha?ses?';
+const SALE = 'sales?';
+const ANNEX = 'ann?ex(ure)?1?3?';
+const QUALIFIER = '(net|total|gross)?';
+const SUFFIX = '(amount|value|amt)?';
+
 const HEADER_RULES: Array<[TargetField, RegExp]> = [
-  ['pan_number', /^(pan|panno|pannumber|vat|vatno|panvat)$/],
+  ['pan_number', /^(pan|panno|pannumber|vat|vatno|panvat|panvatno)$/],
   ['phone', /^(phone|phoneno|phonenumber|mobile|contact|contactno)$/],
   ['address', /^(address|addr|location|place)$/],
-  ['name', /^(companyname|clientname|customername|partyname|name|company|client|customer|party|firm|firmname)$/],
-  ['sales_return', /salesreturn|returnsales|salesrtn/],
-  ['purchases_return', /purchasesreturn|purchasereturn|returnpurchase|purchasertn/],
+  ['name', new RegExp(
+    '^((company|client|customer|party|firm|vendor|supplier|partys?)(s?name)?|name)$')],
+  ['sales_return', new RegExp(`${SALE}return|return${SALE}|${SALE}rtn`)],
+  ['purchases_return', new RegExp(`${PURCHASE}return|return${PURCHASE}|${PURCHASE}rtn`)],
   ['opening_balance', /openingbalance|opening|openbal|obalance|^ob$/],
   ['closing_balance', /closingbalance|closing|closebal|cbalance|^cb$/],
-  ['purchase_annex13', /purchases?ann?ex(ure)?1?3?|ann?ex(ure)?1?3?purchases?/],
-  ['sales_annex13', /sales?ann?ex(ure)?1?3?|ann?ex(ure)?1?3?sales?/],
-  ['annex13', /annex13|annexure13|anx13|annex/],
-  ['purchases', /^purchases?$|purchaseamount|totalpurchase/],
-  ['sales', /^sales?$|salesamount|totalsales|turnover/],
+  // The two split Annex columns must be tried before the generic annex rule,
+  // which would otherwise swallow both.
+  ['purchase_annex13', new RegExp(`${PURCHASE}${ANNEX}|${ANNEX}${PURCHASE}`)],
+  ['sales_annex13', new RegExp(`${SALE}${ANNEX}|${ANNEX}${SALE}`)],
+  ['annex13', /annex13|annexure13|anx13|anex13|annex|anex/],
+  ['purchases', new RegExp(`^${QUALIFIER}${PURCHASE}${SUFFIX}$`)],
+  ['sales', new RegExp(`^${QUALIFIER}${SALE}${SUFFIX}$|^turnover$`)],
 ];
 
 function normalise(header: string): string {
@@ -75,14 +89,40 @@ function guessTarget(header: string): TargetField {
  */
 export function detectHeaderRow(grid: Grid): number {
   const limit = Math.min(grid.length, 20);
+
+  let bestRow = -1;
+  let bestScore = 0;
+
   for (let r = 0; r < limit; r++) {
     const row = grid[r] ?? [];
     if (!row.some((c) => c)) continue;
+
     const targets = row.map(guessTarget);
-    const hasName = targets.includes('name');
-    const hasAmount = targets.some((t) => (AMOUNT_FIELDS as readonly string[]).includes(t));
+    const recognised = new Set(targets.filter((t) => t !== 'ignore'));
+    const hasName = recognised.has('name');
+    const hasAmount = [...recognised].some((t) => (AMOUNT_FIELDS as readonly string[]).includes(t));
+
+    // A row naming a client and at least one amount is unambiguous; take it.
     if (hasName && hasAmount) return r;
+
+    if (recognised.size > bestScore) {
+      bestScore = recognised.size;
+      bestRow = r;
+    }
   }
+
+  // Nothing conclusive. Prefer the row that recognised the most fields, then
+  // the first row carrying real labels. Falling back to row 0 is wrong when a
+  // workbook opens with Excel's "Column1, Column2, ..." filler, which would
+  // otherwise be mapped as the header and yield no rows at all.
+  if (bestRow !== -1) return bestRow;
+
+  for (let r = 0; r < limit; r++) {
+    const row = grid[r] ?? [];
+    const labels = row.filter((c) => c && !isPlaceholderHeader(c));
+    if (labels.length >= 2) return r;
+  }
+
   return 0;
 }
 

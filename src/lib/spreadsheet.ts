@@ -28,6 +28,15 @@ function textOf(el: Element | null): string {
   return el ? (el.textContent ?? '') : '';
 }
 
+/** Cheap check for whether a worksheet part contains any <row>. */
+function hasRows(files: Record<string, Uint8Array>, path: string): boolean {
+  try {
+    return /<row[\s>]/.test(strFromU8(files[path]));
+  } catch {
+    return false;
+  }
+}
+
 function parseXml(xml: string): Document {
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) {
@@ -74,6 +83,17 @@ export function readXlsx(buf: ArrayBuffer): Grid {
   }
   sheetPath ??= findFile(/^xl\/worksheets\/sheet1\.xml$/i) ?? findFile(/^xl\/worksheets\/.*\.xml$/i);
   if (!sheetPath) throw new Error('No worksheet found inside the .xlsx file.');
+
+  // A workbook whose first sheet is empty (a leftover "Sheet2", say) would
+  // otherwise read as a file with no data. Fall back to the first sheet that
+  // actually holds rows.
+  if (!hasRows(files, sheetPath)) {
+    const populated = Object.keys(files)
+      .filter((k) => /^xl\/worksheets\/.*\.xml$/i.test(k))
+      .sort()
+      .find((k) => hasRows(files, k));
+    if (populated) sheetPath = populated;
+  }
 
   const sheet = parseXml(strFromU8(files[sheetPath]));
   const grid: Grid = [];
